@@ -9,6 +9,9 @@ const hourglassIcon = document.querySelector('#hourglass');
 
 btnSelect.addEventListener('click', ()=>{
     console.log('click');
+    fetch('http://127.0.0.1:5000/fetch-related-data')
+    .then(response => response.json())
+    .then(data => console.log(data));
 })
 
 btnDelete.addEventListener('click', ()=>{
