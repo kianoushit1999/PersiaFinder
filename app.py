@@ -16,7 +16,6 @@ def prepare_suitable_data():
     time.sleep(5)
     toc = time.time()
     return jsonify({
-        "time": toc - tic,
         "response": "success"
     })
 
