@@ -1,18 +1,31 @@
 'use strict';
 AOS.init();
-const inuptSearch = document.querySelector('#input-search');
-const btnSelect = document.querySelector('#btn-search');
+const inputSearch = document.querySelector('#input-search');
+const btnSearch = document.querySelector('#btn-search');
 const btnDelete = document.querySelector('#btn-delete');
 const gearBtn = document.querySelector('.gear-btn');
 const gearBtnIcon = document.querySelectorAll('.gear-btn-icon');
 const hourglassIcon = document.querySelector('#hourglass');
 const engineTime = document.querySelector('#engine-time');
 
-btnSelect.addEventListener('click', () => {
+btnSearch.addEventListener('click', () => {
     console.log('click');
-    fetch('http://127.0.0.1:5000/fetch-related-data')
+    const token = inputSearch.value.split("AND").map((value) => {
+        return value.trim()
+    }).join(" ");
+    fetch('http://127.0.0.1:5000/fetch-related-data', {
+        method: 'POST',
+        headers: {
+            'Accept': 'application/json, text/plain, */*',
+            'Content-Type': 'application/json'
+        }, body: JSON.stringify({
+            "sentence": token
+        })
+    })
         .then(response => response.json())
-        .then(data => console.log(data));
+        .then((data) => {
+            console.log(data);
+        })
 })
 
 btnDelete.addEventListener('click', () => {

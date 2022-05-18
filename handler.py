@@ -11,6 +11,7 @@ from hazm import *
 
 ABSOLUTE_PATH = "./source_file"
 
+
 def get_all_files_path():
     list_files = []
     for dir in os.listdir(ABSOLUTE_PATH):
@@ -18,9 +19,10 @@ def get_all_files_path():
             list_files.append(ABSOLUTE_PATH + f"/{dir}/{file_name}")
     return list_files
 
+
 def load_persian_stopwords():
     persian_stop_words = []
-    with open('./files/persian_stopwords', 'r', encoding='utf-8') as reader:
+    with open('./persian_stopwords', 'r', encoding='utf-8') as reader:
         for line in reader.readlines():
             persian_stop_words.append(line.strip())
     return persian_stop_words
@@ -31,6 +33,7 @@ def remove_punctuation(ctx: str) -> str:
     ctx = re.sub(symbols, ' ', ctx)
     ctx = re.sub(r'\s+', ' ', ctx)
     return ctx
+
 
 def convert_numbers(ctx: str) -> str:
     data = ''
@@ -46,4 +49,3 @@ def convert_numbers(ctx: str) -> str:
             data += f'{word}'
         data += " "
     return data
-
