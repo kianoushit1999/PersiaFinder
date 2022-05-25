@@ -21,8 +21,7 @@ def fetch_data_per_path():
     document_number = 0
 
     for path in get_all_files_path():
-        if(path.startswith("./Tebyan_DUH")):
-            continue
+        print(path)
         root = ET.parse(path).getroot()
         for doc_id, url_tag, html_body in zip(root.findall('DOC/DOCID'), root.findall('DOC/URL'),
                                               root.findall('DOC/HTML')):
@@ -88,55 +87,15 @@ def doc_freq(word):
         pass
     return c
 
-
-def matching_score(k, query):
-    query = re.sub(r'[a-zA-Z]', '', query)
-    query = remove_punctuation(query)
-    query = convert_numbers(query)
-    preprocessed_query = re.sub(r'\s+', ' ', query)
-
-    stemmer = Stemmer()
-    tokenized_words_query = word_tokenize(preprocessed_query)
-    tokens = [stemmer.stem(word) for word in tokenized_words_query if not word in set(PERSIAN_STOPWORDS)]
-
-    print("Matching Score")
-    print("\nQuery:", query)
-    print("")
-    print(tokens)
-
-    query_weights = {}
-
-    for key in tf_idf:
-
-        if key[1] in tokens:
-            try:
-                query_weights[key[0]] += tf_idf[key]
-            except:
-                query_weights[key[0]] = tf_idf[key]
-
-    query_weights = sorted(query_weights.items(), key=lambda x: x[1], reverse=True)
-
-    print("")
-
-    l = []
-
-    for i in query_weights[:10]:
-        l.append(i[0])
-
-    print(l)
-
-
 # TF-IDF Cosine Similarity Ranking
 def cosine_sim(a, b):
     cos_sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
     return cos_sim
 
-
 def gen_vector(tokens):
     Q = np.zeros((len(total_vocab)))
     counter = Counter(tokens)
     words_count = len(tokens)
-    query_weights = {}
     for token in np.unique(tokens):
         tf = counter[token] / words_count
         df = doc_freq(token)
@@ -173,9 +132,7 @@ def cosine_similarity(query):
 
     out = np.array(d_cosines).argsort()[:][::-1]
 
-    print("")
-
-    print(out)
+    return out
 
 if __name__ == '__main__':
 
@@ -201,7 +158,7 @@ if __name__ == '__main__':
                 DF[w] = {i}
     for i in DF:
         DF[i] = len(DF[i])
-    print(DF)
+    # print(DF)
 
     total_vocab_size = len(DF)
     total_vocab = [x for x in DF]
@@ -242,6 +199,7 @@ if __name__ == '__main__':
             tf_idf_title[doc, token] = tf * idf
         doc += 1
 
+    print(tf_idf)
     # Merging the TF-IDF according to weights
     alpha = 0.3
     for i in tf_idf:
@@ -252,8 +210,7 @@ if __name__ == '__main__':
 
     print(len(tf_idf))
 
-    # Vectorising tf-idf
-    D = np.zeros((N, total_vocab_size))
+    D = np.zeros((N, total_vocab_size), dtype='uint8')
     for i in tf_idf:
         try:
             ind = total_vocab.index(i[1])
@@ -261,4 +218,9 @@ if __name__ == '__main__':
         except:
             pass
 
-    Q = cosine_similarity("سايت پرديس ابوريحان دانشگاه تهران خوش آمديد")
+    print("Ended vectorizing")
+    Q = cosine_similarity("به سايت پرديس ابوريحان دانشگاه تهران")
+    print(Q)
+    print(dataframe.loc[Q[0], :].title)
+    print(dataframe.loc[Q[1], :].title)
+    print(dataframe.loc[Q[2], :].title)

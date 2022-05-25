@@ -30,7 +30,7 @@ btnSearch.addEventListener('click', () => {
 
 btnDelete.addEventListener('click', () => {
     console.log('delete');
-    inuptSearch.value = "";
+    inputSearch.value = "";
 })
 
 gearBtn.addEventListener('click', () => {
