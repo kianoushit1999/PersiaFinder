@@ -1,44 +1,28 @@
 import re
 import xml.etree.ElementTree as ET
+import time
 import numpy as np
 from bs4 import BeautifulSoup
-from collections import Counter
 from hazm import *
-
 from handler import load_persian_stopwords, \
     get_all_files_path, remove_punctuation, convert_numbers
-from mongodb_handler import insert_general_into_db, insert_tfidf, insert_dataframe, fetch_general_info
+from mongodb_handler import insert_dataframe, processed_text, processed_title, fetch_processed_title, \
+    fetch_processed_texts
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity, linear_kernel
 
 PERSIAN_STOPWORDS = load_persian_stopwords()
 
-
-def doc_freq(word, DF):
-    c = 0
-    try:
-        c = DF[word]
-    except:
-        pass
-    return c
-
-
 def fetch_data_per_path():
     # define variables
-    processed_text = []
-    processed_title = []
     document_number = 0
 
     word_counter = 0
     for path in get_all_files_path():
         print(path)
-        if (path.startswith("./source_file/Tebyan")):
-            continue
-        if (word_counter == 2):
-            break
         root = ET.parse(path).getroot()
         for doc_id, url_tag, html_body in zip(root.findall('DOC/DOCID'), root.findall('DOC/URL'),
                                               root.findall('DOC/HTML')):
-            document_number += 1
-
             document_id = doc_id.text
             document_url = url_tag.text
 
@@ -79,102 +63,52 @@ def fetch_data_per_path():
             body_words = remove_punctuation(body_words)
             body_words = convert_numbers(body_words)
 
-            processed_text.append(body_words.split())
-            processed_title.append(title_words.split())
-
-            insert_dataframe(doc_number=document_number - 1, doc_id=document_id, doc_url=document_url, doc_title=title,
+            processed_text(doc_id=document_number, text=body_words)
+            processed_title(doc_id=document_number, text=title_words)
+            insert_dataframe(doc_number=document_number, doc_id=document_id, doc_url=document_url, doc_title=title,
                              doc_body=body_content)
-        word_counter += 1
-
-    return (
-        document_number,
-        processed_title,
-        processed_text
-    )
-
+            document_number += 1
 
 if __name__ == '__main__':
 
-    document_number, processed_title, processed_text = fetch_data_per_path()
-    print("Entered main .........")
+    # fetch_data_per_path()
+    processed_text = fetch_processed_texts()
+    processed_title = fetch_processed_title()
 
-    N = document_number
-    DF = {}
-    for i in range(N):
-        tokens = processed_text[i]
-        for w in tokens:
-            try:
-                DF[w].add(i)
-            except:
-                DF[w] = {i}
+    print("ENTERED ....")
+    Q = "موسسه باستان شناس دانشگاه تهران"
+    Q = re.sub(r'[a-zA-Z]', '', Q)
+    Q = remove_punctuation(Q)
+    Q = convert_numbers(Q)
+    Q = re.sub(r'\s+', ' ', Q)
+    #
+    # # natural language processing
+    stemmer = Stemmer()
+    tokenized_words_Q = word_tokenize(Q)
+    Q_words = [stemmer.stem(word) for word in tokenized_words_Q if
+                   not word in set(PERSIAN_STOPWORDS)]
+    Q_words = ' '.join(Q_words)
+    Q_words = remove_punctuation(Q_words)
+    Q_words = convert_numbers(Q_words)
 
-        tokens = processed_title[i]
-        for w in tokens:
-            try:
-                DF[w].add(i)
-            except:
-                DF[w] = {i}
-    for i in DF:
-        DF[i] = len(DF[i])
-    # print(DF)
+    tfidf_vectorizer = TfidfVectorizer()
+    tfidf_vectorizer_body = TfidfVectorizer()
+    tfidf_matrix = tfidf_vectorizer.fit_transform([Q_words, *processed_title])
+    tfidf_matrix_body = tfidf_vectorizer_body.fit_transform([Q_words, *processed_text])
 
-    total_vocab_size = len(DF)
-    total_vocab = [x for x in DF]
+    start = time.time()
+    tfidf_query_matrix_title = tfidf_vectorizer.transform([Q_words, *processed_title])
+    tfidf_query_matrix_body = tfidf_vectorizer_body.transform([Q_words, *processed_text])
 
-    insert_general_into_db(N, total_vocab_size, total_vocab, DF)
+    print("for title")
+    cosine_sim_title = cosine_similarity(tfidf_matrix, tfidf_matrix)[0, 1:]*0.75
+    print(cosine_sim_title)
+    print("for body")
+    cosine_sim_body = cosine_similarity(tfidf_matrix_body, tfidf_matrix_body)[0, 1:]*0.25
+    print(cosine_sim_body)
 
-    # TFIDF for body
-    doc = 0
-    tf_idf = {}
-    for i in range(N):
+    print("result")
+    total_cosine = (cosine_sim_title + cosine_sim_body)
+    print("Time taken: %s seconds" % (time.time() - start))
 
-        tokens = processed_text[i]
-
-        counter = Counter(tokens + processed_title[i])
-        words_count = len(tokens + processed_title[i])
-
-        for token in np.unique(tokens):
-            tf = counter[token] / words_count
-            df = doc_freq(token, DF)
-            idf = np.log((N + 1) / (df + 1))
-            tf_idf[doc, token] = tf * idf
-        doc += 1
-
-    print("start tfidf")
-    # TFIDF for title
-    doc = 0
-    tf_idf_title = {}
-
-    for i in range(N):
-
-        tokens = processed_title[i]
-        counter = Counter(tokens + processed_text[i])
-        words_count = len(tokens + processed_text[i])
-
-        for token in np.unique(tokens):
-            tf = counter[token] / words_count
-            df = doc_freq(token, DF)
-            idf = np.log((N + 1) / (df + 1))  # numerator is added 1 to avoid negative values
-            tf_idf_title[doc, token] = tf * idf
-        doc += 1
-
-    # Merging the TF-IDF according to weights
-    print("start alpha")
-    alpha = 0.3
-    for i in tf_idf:
-        tf_idf[i] *= alpha
-
-    for i in tf_idf_title:
-        tf_idf[i] = tf_idf_title[i]
-
-    for i in tf_idf:
-        ind = total_vocab.index(i[1])
-        insert_tfidf(doc_id=i[0], word=ind, tfidf=tf_idf[i])
-
-    fetch_general_info()
-    # print("Ended vectorizing")
-    # Q = cosine_similarity("به سايت پرديس ابوريحان دانشگاه تهران")
-    # print(Q)
-    # print(dataframe.loc[Q[0], :].title)
-    # print(dataframe.loc[Q[1], :].title)
-    # print(dataframe.loc[Q[2], :].title)
+    print(sorted(range(len(total_cosine)), key=total_cosine.__getitem__))
