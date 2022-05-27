@@ -47,15 +47,26 @@ def insert_dataframe(doc_number, doc_id, doc_url, doc_title, doc_body):
 
 
 def fetch_dataframe_by_doc_id(doc_num):
-    client = pymongo.MongoClient("mongodb://localhost:27017/")
-    db = client["searchEngine"]
-    col_df = db["dataFrame"]
     return col_df.find_one({"doc_number": doc_num}, {
         "doc_url": 1,
         "doc_title": 1,
         "doc_body": 1,
         "_id": 0
     }).values()
+
+def fetch_data_page_handler(list):
+    client = pymongo.MongoClient("mongodb://localhost:27017/")
+    db = client["searchEngine"]
+    col_df = db["dataFrame"]
+    result_list = []
+    for id in list:
+        result_list.append(col_df.find_one({"doc_number": id}, {
+            "doc_url": 1,
+            "doc_title": 1,
+            "doc_body": 1,
+            "_id": 0
+        }))
+    return result_list
 
 # def insert_general_into_db(N=0, total_vocab_size=0, total_vocab=[], DF={}):
 #     client = pymongo.MongoClient("mongodb://localhost:27017/")

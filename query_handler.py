@@ -1,85 +1,54 @@
 import re
-import numpy as np
-from collections import Counter
-import math
-from hazm import *
-from data_processors import doc_freq
+
+from hazm import Stemmer, word_tokenize
+from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.metrics.pairwise import cosine_similarity
+
+from data_processors import fetch_data_per_path
 from handler import remove_punctuation, convert_numbers, load_persian_stopwords
-from mongodb_handler import fetch_general_info, find_by_doc, fetch_dataframe_by_doc_id
+from mongodb_handler import fetch_processed_texts, fetch_processed_title
 
-N = 0
-total_vocab = []
-total_vocab_size = 0
-DF = {}
+PERSIAN_STOPWORDS = []
+processed_text = []
+processed_title = []
 
-PERSIAN_STOPWORDS = load_persian_stopwords()
+def prepare_engine():
+    global PERSIAN_STOPWORDS, processed_text, processed_title
+    processed_text = fetch_processed_texts()
+    processed_title = fetch_processed_title()
+    PERSIAN_STOPWORDS = load_persian_stopwords()
 
-def initializer_constraint():
-    global DF, N, total_vocab, total_vocab_size
-    N, total_vocab_size, total_vocab, DF = fetch_general_info()
-
-# TF-IDF Cosine Similarity Ranking
-def cosine_sim(a, b):
-    cos_sim = np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
-    return cos_sim
-
-def gen_vector(tokens):
-    global total_vocab, DF, N
-    Q = np.zeros((len(total_vocab)))
-    counter = Counter(tokens)
-    words_count = len(tokens)
-    for token in np.unique(tokens):
-        tf = counter[token] / words_count
-        df = doc_freq(token, DF)
-        idf = math.log((N + 1) / (df + 1))
-        try:
-            ind = total_vocab.index(token)
-            Q[ind] = tf * idf
-        except:
-            pass
-    return Q
+    print(processed_title)
 
 
-def cosine_similarity(query):
-    global N, total_vocab_size
-    print("Cosine Similarity")
-    query = re.sub(r'[a-zA-Z]', '', query)
-    query = remove_punctuation(query)
-    query = convert_numbers(query)
-    preprocessed_query = re.sub(r'\s+', ' ', query)
+def query_handler(Q):
+    Q = re.sub(r'[a-zA-Z]', '', Q)
+    Q = remove_punctuation(Q)
+    Q = convert_numbers(Q)
+    Q = re.sub(r'\s+', ' ', Q)
 
     stemmer = Stemmer()
-    tokenized_words_query = word_tokenize(preprocessed_query)
-    tokens = [stemmer.stem(word) for word in tokenized_words_query if not word in set(PERSIAN_STOPWORDS)]
+    tokenized_words_Q = word_tokenize(Q)
+    Q_words = [stemmer.stem(word) for word in tokenized_words_Q if
+               not word in set(PERSIAN_STOPWORDS)]
 
-    print("\nQuery:", query)
-    print("")
-    print(tokens)
+    Q_words = ' '.join(Q_words)
+    Q_words = remove_punctuation(Q_words)
+    Q_words = convert_numbers(Q_words)
 
-    d_cosines = []
+    tfidf_vectorizer = TfidfVectorizer()
+    tfidf_vectorizer_body = TfidfVectorizer()
+    tfidf_matrix = tfidf_vectorizer.fit_transform([Q_words, *processed_title])
+    tfidf_matrix_body = tfidf_vectorizer_body.fit_transform([Q_words, *processed_text])
 
-    query_vector = gen_vector(tokens)
-    print(len(query_vector))
-    print(find_by_doc(0))
-    for counter in range(N):
-        D = np.zeros((1, total_vocab_size))
-        for doc_id, tfidf in find_by_doc(counter):
-            D[0][doc_id] = tfidf
-        print(len(D), len(query_vector))
-        d_cosines.append(cosine_sim(query_vector, D[0]))
+    print("for title")
+    cosine_sim_title = cosine_similarity(tfidf_matrix, tfidf_matrix)[0, 1:] * 0.75
+    print(cosine_sim_title)
+    print("for body")
+    cosine_sim_body = cosine_similarity(tfidf_matrix_body, tfidf_matrix_body)[0, 1:] * 0.25
+    print(cosine_sim_body)
 
-    out = np.array(d_cosines).argsort()[:][::-1]
+    print("result")
+    total_cosine = (cosine_sim_title + cosine_sim_body)
 
-    return out
-
-def execute_query(query):
-    print("Ended vectorizing")
-    Q = cosine_similarity(query)
-    return Q
-
-if __name__ == '__main__':
-    initializer_constraint()
-    doc_id_list = execute_query("به سايت پرديس ابوريحان دانشگاه تهران خوش آمديد")
-    print(doc_id_list)
-    for id in doc_id_list:
-        print(fetch_dataframe_by_doc_id(int(id)))
+    return sorted(range(len(total_cosine)), key=total_cosine.__getitem__)[::-1]

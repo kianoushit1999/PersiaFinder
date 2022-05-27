@@ -162,6 +162,7 @@ main {
     transition: all 0.5s ease;
 }
 
+.number.active,
 .number:hover {
     background-color: var(--medium-primary-color);
     color: var(--light-color);

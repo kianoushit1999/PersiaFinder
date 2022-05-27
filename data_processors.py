@@ -6,19 +6,18 @@ from bs4 import BeautifulSoup
 from hazm import *
 from handler import load_persian_stopwords, \
     get_all_files_path, remove_punctuation, convert_numbers
-from mongodb_handler import insert_dataframe, processed_text, processed_title, fetch_processed_title, \
-    fetch_processed_texts
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.metrics.pairwise import cosine_similarity, linear_kernel
+from mongodb_handler import insert_dataframe, processed_text, processed_title
 
-PERSIAN_STOPWORDS = load_persian_stopwords()
 
 def fetch_data_per_path():
     # define variables
     document_number = 0
-
     word_counter = 0
+    PERSIAN_STOPWORDS = load_persian_stopwords()
+
     for path in get_all_files_path():
+        if (path.startswith("./source_file/TehranUni_DUH")):
+            continue
         print(path)
         root = ET.parse(path).getroot()
         for doc_id, url_tag, html_body in zip(root.findall('DOC/DOCID'), root.findall('DOC/URL'),
@@ -68,47 +67,3 @@ def fetch_data_per_path():
             insert_dataframe(doc_number=document_number, doc_id=document_id, doc_url=document_url, doc_title=title,
                              doc_body=body_content)
             document_number += 1
-
-if __name__ == '__main__':
-
-    # fetch_data_per_path()
-    processed_text = fetch_processed_texts()
-    processed_title = fetch_processed_title()
-
-    print("ENTERED ....")
-    Q = "موسسه باستان شناس دانشگاه تهران"
-    Q = re.sub(r'[a-zA-Z]', '', Q)
-    Q = remove_punctuation(Q)
-    Q = convert_numbers(Q)
-    Q = re.sub(r'\s+', ' ', Q)
-    #
-    # # natural language processing
-    stemmer = Stemmer()
-    tokenized_words_Q = word_tokenize(Q)
-    Q_words = [stemmer.stem(word) for word in tokenized_words_Q if
-                   not word in set(PERSIAN_STOPWORDS)]
-    Q_words = ' '.join(Q_words)
-    Q_words = remove_punctuation(Q_words)
-    Q_words = convert_numbers(Q_words)
-
-    tfidf_vectorizer = TfidfVectorizer()
-    tfidf_vectorizer_body = TfidfVectorizer()
-    tfidf_matrix = tfidf_vectorizer.fit_transform([Q_words, *processed_title])
-    tfidf_matrix_body = tfidf_vectorizer_body.fit_transform([Q_words, *processed_text])
-
-    start = time.time()
-    tfidf_query_matrix_title = tfidf_vectorizer.transform([Q_words, *processed_title])
-    tfidf_query_matrix_body = tfidf_vectorizer_body.transform([Q_words, *processed_text])
-
-    print("for title")
-    cosine_sim_title = cosine_similarity(tfidf_matrix, tfidf_matrix)[0, 1:]*0.75
-    print(cosine_sim_title)
-    print("for body")
-    cosine_sim_body = cosine_similarity(tfidf_matrix_body, tfidf_matrix_body)[0, 1:]*0.25
-    print(cosine_sim_body)
-
-    print("result")
-    total_cosine = (cosine_sim_title + cosine_sim_body)
-    print("Time taken: %s seconds" % (time.time() - start))
-
-    print(sorted(range(len(total_cosine)), key=total_cosine.__getitem__))
