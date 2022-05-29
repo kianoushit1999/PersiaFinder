@@ -74,7 +74,7 @@ btnSearch.addEventListener('click', () => {
             let toc = new Date().getTime();
             console.log(content)
             console.log(indexList);
-            totalResult.textContent = `Time : (${parseFloat((toc - tic) / 1000).toFixed(0)}s)`;
+            totalResult.textContent = `Time : (${parseFloat((toc - tic))}ms)`;
             manipulateDom(content)
             console.log(indexList.slice(0, 10));
         });
